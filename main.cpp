@@ -52,6 +52,11 @@ int main(int argc, const char* argv[])
 {
     std::string inputVideo = "Videos/TestVideo/19Aug-Test-Crowd.avi";
     int algorithmIndex = 0;
+    if (argc <= 1){
+        std::cout << "Usage: ./bgs_test [path_to_video_file] [algorithm_number(between 0 and 6)]" << std::endl;
+        std::cout << "Example: ./bgs_test Videos/video.avi 1" << std::endl;
+        exit(1);
+    }
 
     if (argc > 1){
         inputVideo = argv[1];
