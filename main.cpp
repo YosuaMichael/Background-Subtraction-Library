@@ -29,6 +29,7 @@
 ******************************************************************************/
 
 #include <iostream>
+#include <string>
 
 #pragma warning ( disable : 4800 ) 
 
@@ -36,6 +37,7 @@
 #include <cxcore.h>
 #include <highgui.h>
 
+#include "Bgs.hpp"
 #include "AdaptiveMedianBGS.hpp"
 #include "GrimsonGMM.hpp"
 #include "ZivkovicAGMM.hpp"
@@ -48,8 +50,18 @@ enum RESULT_TYPE { IMAGE_DMS, IMAGE_SM_WALLFLOWER, VIDEO };
 
 int main(int argc, const char* argv[])
 {
+    std::string inputVideo = "Videos/TestVideo/19Aug-Test-Crowd.avi";
+    int algorithmIndex = 0;
+
+    if (argc > 1){
+        inputVideo = argv[1];
+    }
+    if (argc > 2){
+        algorithmIndex = atoi(argv[2]);
+    }
+
 	// read data from AVI file
-	CvCapture* readerAvi = cvCaptureFromAVI("data/fountain.avi");
+	CvCapture* readerAvi = cvCaptureFromAVI(inputVideo.c_str());
 	if(readerAvi == NULL)
 	{
 		std::cerr << "Could not open AVI file." << std::endl;
@@ -62,6 +74,8 @@ int main(int argc, const char* argv[])
 	int height = (int) cvGetCaptureProperty(readerAvi, CV_CAP_PROP_FRAME_HEIGHT);
 	int fps = (int) cvGetCaptureProperty(readerAvi, CV_CAP_PROP_FPS);
 	int num_frames = (unsigned int) cvGetCaptureProperty(readerAvi,  CV_CAP_PROP_FRAME_COUNT);
+
+    std::cout << "After retrieving information about AVI file: width=" << width << ", height=" << height << ", fps=" << fps << ", num_frames=" << num_frames << std::endl;
 
 	// setup marks to hold results of low and high thresholding
 	BwImage low_threshold_mask = cvCreateImage(cvSize(width, height), IPL_DEPTH_8U, 1);
@@ -76,92 +90,127 @@ int main(int argc, const char* argv[])
 
 	// setup AVI writers (note: you will need to install the HUFFY codex at: 
 	//   http://neuron2.net/www.math.berkeley.edu/benrg/huffyuv.html)
-	CvVideoWriter* writerAvi = cvCreateVideoWriter("output/results.avi", CV_FOURCC('H', 'F', 'Y', 'U'),	
-															fps, cvSize(width, height), 1);
+	//CvVideoWriter* writerAvi = cvCreateVideoWriter("output/results.avi", CV_FOURCC('H', 'F', 'Y', 'U'),	
+	//														fps, cvSize(width, height), 1);
+	//CvVideoWriter* writerAvi = cvCreateVideoWriter("results.avi", CV_FOURCC('D','I','V','X'),	
+	//														fps, cvSize(width, height), 1);
 
 	// setup background subtraction algorithm
-	/*
-	Algorithms::BackgroundSubtraction::AdaptiveMedianParams params;
-	params.SetFrameSize(width, height);
-	params.LowThreshold() = 40;
-	params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
-	params.SamplingRate() = 7;
-	params.LearningFrames() = 30;
+	//*
+    Algorithms::BackgroundSubtraction::Bgs *bgs = NULL;
+    
+    switch (algorithmIndex){
+        case 0: 
+        {
+            std::cout << "[*]Using AdaptiveMedian method" << std::endl;
+            Algorithms::BackgroundSubtraction::AdaptiveMedianParams params;
+            params.SetFrameSize(width, height);
+            params.LowThreshold() = 40;
+            params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
+            params.SamplingRate() = 7;
+            params.LearningFrames() = 30;
 
-	Algorithms::BackgroundSubtraction::AdaptiveMedianBGS bgs;
-	bgs.Initalize(params);
-	*/
+            //Algorithms::BackgroundSubtraction::AdaptiveMedianBGS bgs;
+            bgs = new Algorithms::BackgroundSubtraction::AdaptiveMedianBGS();
+            bgs->Initalize(params);
+            break;
+        };
+        case 1: 
+        {
+            std::cout << "[*]Using Grimson method (GMM)" << std::endl;
+            Algorithms::BackgroundSubtraction::GrimsonParams params;
+            params.SetFrameSize(width, height);
+            params.LowThreshold() = 3.0f*3.0f;
+            params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
+            params.Alpha() = 0.001f;
+            params.MaxModes() = 3;
 
-	/*
-	Algorithms::BackgroundSubtraction::GrimsonParams params;
-	params.SetFrameSize(width, height);
-	params.LowThreshold() = 3.0f*3.0f;
-	params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
-	params.Alpha() = 0.001f;
-	params.MaxModes() = 3;
+            //Algorithms::BackgroundSubtraction::GrimsonGMM bgs;
+            bgs = new Algorithms::BackgroundSubtraction::GrimsonGMM();
+            bgs->Initalize(params);
+            break;
+        };
+        case 2: 
+        {
+            std::cout << "[*]Using Zivkovic method (AGMM)" << std::endl;
+            Algorithms::BackgroundSubtraction::ZivkovicParams params;
+            params.SetFrameSize(width, height);
+            params.LowThreshold() = 5.0f*5.0f;
+            params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
+            params.Alpha() = 0.001f;
+            params.MaxModes() = 3;
 
-	Algorithms::BackgroundSubtraction::GrimsonGMM bgs;
-	bgs.Initalize(params);
-	*/
+            //Algorithms::BackgroundSubtraction::ZivkovicAGMM bgs;
+            bgs = new Algorithms::BackgroundSubtraction::ZivkovicAGMM();
+            bgs->Initalize(params);
+            break;
+        };
+        case 3: 
+        {
+            std::cout << "[*]Using Mean method" << std::endl;
+            Algorithms::BackgroundSubtraction::MeanParams params;
+            params.SetFrameSize(width, height);
+            params.LowThreshold() = 3*30*30;
+            params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
+            params.Alpha() = 1e-6f;
+            params.LearningFrames() = 30;
 
-	/*
-	Algorithms::BackgroundSubtraction::ZivkovicParams params;
-	params.SetFrameSize(width, height);
-	params.LowThreshold() = 5.0f*5.0f;
-	params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
-	params.Alpha() = 0.001f;
-	params.MaxModes() = 3;
+            //Algorithms::BackgroundSubtraction::MeanBGS bgs;
+            bgs = new Algorithms::BackgroundSubtraction::MeanBGS();
+            bgs->Initalize(params);
+            break;
+        };
+        case 4: 
+        {
+            std::cout << "[*]Using Wren method (GA)" << std::endl;
+            Algorithms::BackgroundSubtraction::WrenParams params;
+            params.SetFrameSize(width, height);
+            params.LowThreshold() = 3.5f*3.5f;
+            params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
+            params.Alpha() = 0.005f;
+            params.LearningFrames() = 30;
 
-	Algorithms::BackgroundSubtraction::ZivkovicAGMM bgs;
-	bgs.Initalize(params);
-	*/
+            //Algorithms::BackgroundSubtraction::WrenGA bgs;
+            bgs = new Algorithms::BackgroundSubtraction::WrenGA();
+            bgs->Initalize(params);
+            break;
+        };
+        case 5: 
+        {
+            std::cout << "[*]Using Prati method (mediod)" << std::endl;
+            Algorithms::BackgroundSubtraction::PratiParams params;
+            params.SetFrameSize(width, height);
+            params.LowThreshold() = 30;
+            params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
+            params.SamplingRate() = 5;
+            params.HistorySize() = 16;
+            params.Weight() = 5;
 
-	/*
-	Algorithms::BackgroundSubtraction::MeanParams params;
-	params.SetFrameSize(width, height);
-	params.LowThreshold() = 3*30*30;
-	params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
-	params.Alpha() = 1e-6f;
-	params.LearningFrames() = 30;
+            //Algorithms::BackgroundSubtraction::PratiMediodBGS bgs;
+            bgs = new Algorithms::BackgroundSubtraction::PratiMediodBGS();
+            bgs->Initalize(params);
+            break;
+        };
+        case 6: 
+        {
+            std::cout << "[*]Using EigenBackground method" << std::endl;
+            Algorithms::BackgroundSubtraction::EigenbackgroundParams params;
+            params.SetFrameSize(width, height);
+            params.LowThreshold() = 15*15;
+            params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
+            params.HistorySize() = 100;
+            params.EmbeddedDim() = 20;
 
-	Algorithms::BackgroundSubtraction::MeanBGS bgs;
-	bgs.Initalize(params);
-	*/
+            //Algorithms::BackgroundSubtraction::Eigenbackground bgs;
+            bgs = new Algorithms::BackgroundSubtraction::Eigenbackground();
+            bgs->Initalize(params);
+            break;
+        }
+    }
 
-	/*
-	Algorithms::BackgroundSubtraction::WrenParams params;
-	params.SetFrameSize(width, height);
-	params.LowThreshold() = 3.5f*3.5f;
-	params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
-	params.Alpha() = 0.005f;
-	params.LearningFrames() = 30;
-
-	Algorithms::BackgroundSubtraction::WrenGA bgs;
-	bgs.Initalize(params);
-	*/
-
-	/*
-	Algorithms::BackgroundSubtraction::PratiParams params;
-	params.SetFrameSize(width, height);
-	params.LowThreshold() = 30;
-	params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
-	params.SamplingRate() = 5;
-	params.HistorySize() = 16;
-	params.Weight() = 5;
-
-	Algorithms::BackgroundSubtraction::PratiMediodBGS bgs;
-	bgs.Initalize(params);
-	*/
-
-	Algorithms::BackgroundSubtraction::EigenbackgroundParams params;
-	params.SetFrameSize(width, height);
-	params.LowThreshold() = 15*15;
-	params.HighThreshold() = 2*params.LowThreshold();	// Note: high threshold is used by post-processing 
-	params.HistorySize() = 100;
-	params.EmbeddedDim() = 20;
-
-	Algorithms::BackgroundSubtraction::Eigenbackground bgs;
-	bgs.Initalize(params);
+    cvNamedWindow("ImageORI", CV_WINDOW_AUTOSIZE);
+    cvNamedWindow("ImageBG_LOW", CV_WINDOW_AUTOSIZE);
+    cvNamedWindow("ImageBG_HIGH", CV_WINDOW_AUTOSIZE);
 
 	// perform background subtraction of each frame 
 	for(int i = 0; i < num_frames-1; ++i)
@@ -179,19 +228,27 @@ int main(int argc, const char* argv[])
 		
 		// initialize background model to first frame of video stream
 		if (i == 0)
-			bgs.InitModel(frame_data); 
+			bgs->InitModel(frame_data); 
 
 		// perform background subtraction
-		bgs.Subtract(i, frame_data, low_threshold_mask, high_threshold_mask);
+		bgs->Subtract(i, frame_data, low_threshold_mask, high_threshold_mask);
 
 		// save results
-		cvWriteFrame(writerAvi, low_threshold_mask.Ptr());
+		//cvWriteFrame(writerAvi, low_threshold_mask.Ptr());
+
+        //Show the result
+        cvFlip(low_threshold_mask.Ptr(),NULL,0);
+        cvFlip(high_threshold_mask.Ptr(),NULL,0);
+        cvShowImage("ImageORI", frame_data.Ptr());
+        cvShowImage("ImageBG_LOW", low_threshold_mask.Ptr());
+        cvShowImage("ImageBG_HIGH", high_threshold_mask.Ptr());
+        cvWaitKey(50);
 
 		// update background subtraction
 		low_threshold_mask.Clear();	// disable conditional updating
-		bgs.Update(i, frame_data, low_threshold_mask);
+		bgs->Update(i, frame_data, low_threshold_mask);
 	}
 
 	cvReleaseCapture(&readerAvi);
-	cvReleaseVideoWriter(&writerAvi);
+	//cvReleaseVideoWriter(&writerAvi);
 }
